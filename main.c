@@ -114,6 +114,7 @@ void processFilesRecursively(const char *dirPath, const char *fileType, time_t m
 
 void processArchive(const char *archivePath, const char *fileType) {
     char *dirName = strdup(dirname(strdup(archivePath)));
+    printf("dirNAME= %s\n",dirName);
     char *tempDir = "temp";
     char tempArchive[PATH_MAX];
 
@@ -131,7 +132,22 @@ void processArchive(const char *archivePath, const char *fileType) {
     }
 
     if (extractPid == 0) {
-        execlp("tar", "tar", "-xvf", archivePath, "-C", tempDir, NULL);
+        // Выбор команды извлечения в зависимости от расширения имени файла
+        char *extension =  strrchr(archivePath, '.');
+        if (extension == NULL) {
+            printf("Cannot determine archive type.\n");
+            exit(1);
+        }
+        if (strcmp(extension, ".tar") == 0) {
+            execlp("tar", "tar", "-xvf", archivePath, "-C", tempDir, NULL);
+        } else if (strcmp(extension, ".zip") == 0) {
+            execlp("unzip", "unzip", archivePath, "-d", tempDir, NULL);
+        } else if (strcmp(extension, ".gz") == 0) {
+            execlp("gunzip", "gunzip", "-c", archivePath, ">", tempDir, NULL);
+        } else {
+            printf("Unsupported archive type.\n");
+            exit(1);
+        }
         perror("execlp");
         exit(1);
     } else {
@@ -142,12 +158,33 @@ void processArchive(const char *archivePath, const char *fileType) {
             time_t maxModificationTime = 0;
             process_directory(tempDir, fileType, &maxModificationTime);
 
-            processFilesRecursively(tempDir,fileType,maxModificationTime);
+            processFilesRecursively(tempDir, fileType, maxModificationTime);
    
             snprintf(tempArchive, sizeof(tempArchive), "%s_temp", archivePath);
             char command[PATH_MAX + 100];
-            // snprintf(command, sizeof(command), "tar -cvf %s -C %s .", tempArchive, tempDir);
-            snprintf(command, sizeof(command), "tar -cvf %s -C %s --exclude=%s .", tempArchive, tempDir, tempDir);
+            // Создание команды архивирования в зависимости от расширения имени файла
+            char *extension = strrchr(archivePath, '.');
+            if (extension == NULL) {
+                printf("Cannot determine archive type.\n");
+                return;
+            }
+            if (strcmp(extension, ".tar") == 0) {
+                snprintf(command, sizeof(command), "tar -cvf %s -C %s --exclude=%s .", tempArchive, tempDir, tempDir);
+            } else if (strcmp(extension, ".zip") == 0) {
+                char fullpathArchive[PATH_MAX];
+                realpath(tempArchive, fullpathArchive);
+                snprintf(command, sizeof(command), "cd temp/ && zip -r %s *", fullpathArchive);
+                printf("COMMAND = %s",command);
+                // printf("Path to tempDir = %s",fullTempDirPath);
+                // snprintf(command, sizeof(command), "cd %s && zip -r %s *", fullTempDirPath, tempArchive);
+
+
+            } else if (strcmp(extension, ".gz") == 0) {
+                snprintf(command, sizeof(command), "gzip -c %s > %s", tempDir, tempArchive);
+            } else {
+                printf("Unsupported archive type.\n");
+                return;
+            }
 
             int status = system(command);
             if (status == -1) {
@@ -179,7 +216,7 @@ void processArchive(const char *archivePath, const char *fileType) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) { 
     if (argc < 3) {
         fprintf(stderr, "Usage: %s <archive_path> <file_type>\n", argv[0]);
         return 1;
