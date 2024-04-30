@@ -40,21 +40,21 @@ void remove_directory_recursive(const char *path) {
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; 
+            continue;
         }
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-            remove_directory_recursive(full_path); 
+            remove_directory_recursive(full_path);
         } else {
-            remove(full_path); 
+            remove(full_path);
         }
     }
 
     closedir(dir);
-    rmdir(path); 
+    rmdir(path);
 }
 
 void process_directory(const char *path, const char *fileType, time_t *maxModificationTime) {
@@ -67,14 +67,14 @@ void process_directory(const char *path, const char *fileType, time_t *maxModifi
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; 
+            continue;
         }
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-            process_directory(full_path, fileType, maxModificationTime); 
+            process_directory(full_path, fileType, maxModificationTime);
         } else if (entry->d_type == DT_REG && strstr(entry->d_name, fileType) != NULL) {
             time_t modificationTime = getMaxFileModificationTime(full_path);
             if (modificationTime > *maxModificationTime) {
@@ -96,13 +96,13 @@ void processFilesRecursively(const char *dirPath, const char *fileType, time_t m
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; 
+            continue;
         }
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", dirPath, entry->d_name);
 
-        if (entry->d_type == DT_DIR) { 
+        if (entry->d_type == DT_DIR) {
             processFilesRecursively(full_path, fileType, maxModificationTime);
         } else if (entry->d_type == DT_REG && strstr(entry->d_name, fileType) != NULL) {
             updateFileModificationTime(full_path, maxModificationTime);
@@ -113,12 +113,13 @@ void processFilesRecursively(const char *dirPath, const char *fileType, time_t m
 }
 
 void processArchive(const char *archivePath, const char *fileType) {
+    freopen("/dev/null", "a", stderr);
+
     char *dirName = strdup(dirname(strdup(archivePath)));
-    printf("dirNAME= %s\n",dirName);
     char *tempDir = "temp";
     char tempArchive[PATH_MAX];
 
-    remove_directory_recursive(tempDir); 
+    remove_directory_recursive(tempDir);
 
     if (mkdir(tempDir, 0777) == -1) {
         perror("mkdir");
@@ -132,7 +133,10 @@ void processArchive(const char *archivePath, const char *fileType) {
     }
 
     if (extractPid == 0) {
-        // Выбор команды извлечения в зависимости от расширения имени файла
+        FILE *logFile = fopen("logfile.log", "a");
+        freopen("logfile.log", "a", stdout);
+        freopen("logfile.log", "a", stderr);
+
         char *extension =  strrchr(archivePath, '.');
         if (extension == NULL) {
             printf("Cannot determine archive type.\n");
@@ -145,10 +149,14 @@ void processArchive(const char *archivePath, const char *fileType) {
         } else if (strcmp(extension, ".gz") == 0) {
             execlp("gunzip", "gunzip", "-c", archivePath, ">", tempDir, NULL);
         } else {
-            printf("Unsupported archive type.\n");
+            fprintf(logFile, "Unsupported archive type: %s\n",archivePath);
+//            printf("Unsupported archive type.\n");
+            fclose(logFile);
             exit(1);
         }
         perror("execlp");
+        freopen("/dev/tty", "a", stdout);
+        freopen("/dev/tty", "a", stderr);
         exit(1);
     } else {
         int extractStatus;
@@ -159,10 +167,10 @@ void processArchive(const char *archivePath, const char *fileType) {
             process_directory(tempDir, fileType, &maxModificationTime);
 
             processFilesRecursively(tempDir, fileType, maxModificationTime);
-   
+
             snprintf(tempArchive, sizeof(tempArchive), "%s_temp", archivePath);
             char command[PATH_MAX + 100];
-            // Создание команды архивирования в зависимости от расширения имени файла
+
             char *extension = strrchr(archivePath, '.');
             if (extension == NULL) {
                 printf("Cannot determine archive type.\n");
@@ -174,26 +182,26 @@ void processArchive(const char *archivePath, const char *fileType) {
                 char fullpathArchive[PATH_MAX];
                 realpath(tempArchive, fullpathArchive);
                 snprintf(command, sizeof(command), "cd temp/ && zip -r %s *", fullpathArchive);
-                printf("COMMAND = %s",command);
-                // printf("Path to tempDir = %s",fullTempDirPath);
-                // snprintf(command, sizeof(command), "cd %s && zip -r %s *", fullTempDirPath, tempArchive);
-
-
             } else if (strcmp(extension, ".gz") == 0) {
                 snprintf(command, sizeof(command), "gzip -c %s > %s", tempDir, tempArchive);
             } else {
                 printf("Unsupported archive type.\n");
                 return;
             }
-
+            freopen("logfile.log", "a", stdout);
             int status = system(command);
             if (status == -1) {
                 perror("system");
                 return;
             }
+            freopen("/dev/tty", "a", stdout);
+            freopen("/dev/tty", "a", stderr);
 
             if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+                FILE *logFile = fopen("logfile.log", "a");
                 printf("Temporary archive created successfully!\n");
+                fprintf(logFile, "Temporary archive created successfully!\n");
+                fclose(logFile);
 
                 if (remove(archivePath) != 0) {
                     perror("remove");
