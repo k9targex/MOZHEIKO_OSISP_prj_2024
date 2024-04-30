@@ -40,21 +40,21 @@ void remove_directory_recursive(const char *path) {
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; 
+            continue;
         }
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-            remove_directory_recursive(full_path); 
+            remove_directory_recursive(full_path);
         } else {
-            remove(full_path); 
+            remove(full_path);
         }
     }
 
     closedir(dir);
-    rmdir(path); 
+    rmdir(path);
 }
 
 void process_directory(const char *path, const char *fileType, time_t *maxModificationTime) {
@@ -67,14 +67,14 @@ void process_directory(const char *path, const char *fileType, time_t *maxModifi
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; 
+            continue;
         }
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-            process_directory(full_path, fileType, maxModificationTime); 
+            process_directory(full_path, fileType, maxModificationTime);
         } else if (entry->d_type == DT_REG && strstr(entry->d_name, fileType) != NULL) {
             time_t modificationTime = getMaxFileModificationTime(full_path);
             if (modificationTime > *maxModificationTime) {
@@ -96,13 +96,13 @@ void processFilesRecursively(const char *dirPath, const char *fileType, time_t m
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue; 
+            continue;
         }
 
         char full_path[PATH_MAX];
         snprintf(full_path, sizeof(full_path), "%s/%s", dirPath, entry->d_name);
 
-        if (entry->d_type == DT_DIR) { 
+        if (entry->d_type == DT_DIR) {
             processFilesRecursively(full_path, fileType, maxModificationTime);
         } else if (entry->d_type == DT_REG && strstr(entry->d_name, fileType) != NULL) {
             updateFileModificationTime(full_path, maxModificationTime);
@@ -119,7 +119,7 @@ void processArchive(const char *archivePath, const char *fileType) {
     char *tempDir = "temp";
     char tempArchive[PATH_MAX];
 
-    remove_directory_recursive(tempDir); 
+    remove_directory_recursive(tempDir);
 
     if (mkdir(tempDir, 0777) == -1) {
         perror("mkdir");
@@ -167,10 +167,10 @@ void processArchive(const char *archivePath, const char *fileType) {
             process_directory(tempDir, fileType, &maxModificationTime);
 
             processFilesRecursively(tempDir, fileType, maxModificationTime);
-   
+
             snprintf(tempArchive, sizeof(tempArchive), "%s_temp", archivePath);
             char command[PATH_MAX + 100];
- 
+
             char *extension = strrchr(archivePath, '.');
             if (extension == NULL) {
                 printf("Cannot determine archive type.\n");
